@@ -99,7 +99,7 @@ bool SROA::runOnFunction(Function &F) {
     // the entry node
     for (BasicBlock::iterator I = BB.begin(), E = --BB.end(); I != E; ++I)
       if (AllocaInst *AI = dyn_cast<AllocaInst>(I)) // Is it an alloca?
-        if (llvm::isAllocaPromotable(AI))
+        if (SROA::isAllocaPromotable(AI))
           Allocas.push_back(AI);
 
     if (Allocas.empty())
@@ -115,6 +115,26 @@ bool SROA::runOnFunction(Function &F) {
 }
 
 bool SROA::isAllocaPromotable(const AllocaInst *AI) {
+
+  bool isTypeFirstClass = false;
+  Type* t = AI->getAllocatedType();
+  if (t->isFPOrFPVectorTy() || t->isIntOrIntVectorTy() || t->isPtrOrPtrVectorTy()) {
+    isTypeFirstClass = true;
+  }
+  else return false;
+
+  for (const User *U : AI->users()) {
+    if (const StoreInst *SI = dyn_cast<StoreInst>(U)) {
+      if (SI->isVolatile()) return false;
+    }
+    else if (const LoadInst *LI = dyn_cast<LoadInst>(U)) {
+      if (LI->isVolatile()) return false;
+    }
+    else {
+      return false;
+    }
+  }
+
   return true;
 }
 
