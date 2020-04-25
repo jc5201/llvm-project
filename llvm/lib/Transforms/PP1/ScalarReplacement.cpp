@@ -30,6 +30,12 @@
 #include "llvm/Transforms/Utils/PromoteMemToReg.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/ADT/Statistic.h"
+
+#include "llvm/Analysis/AssumptionCache.h"
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Dominators.h"
+#include "llvm/Support/Casting.h"
+
 using namespace llvm;
 
 STATISTIC(NumReplaced,  "Number of aggregate allocas broken up");
@@ -46,12 +52,14 @@ namespace {
     // getAnalysisUsage - List passes required by this pass.  We also know it
     // will not alter the CFG, so say so.
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+      AU.addRequired<AssumptionCacheTracker>();
+      AU.addRequired<DominatorTreeWrapperPass>();
       AU.setPreservesCFG();
     }
 
   private:
     // Add fields and helper functions for this pass here.
-    bool isAllocaPromotable(const AllocaInst);
+    bool isAllocaPromotable(const AllocaInst*);
   };
 }
 
@@ -76,12 +84,13 @@ FunctionPass *createMyScalarReplAggregatesPass() { return new SROA(); }
 // This function is provided to you.
 bool SROA::runOnFunction(Function &F) {
 
+  bool Changed = false;
+
   DominatorTree &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
   AssumptionCache &AC = getAnalysis<AssumptionCacheTracker>().getAssumptionCache(F);
 
   std::vector<AllocaInst *> Allocas;
   BasicBlock &BB = F.getEntryBlock(); // Get the entry node for the function
-  bool Changed = false;
 
   while (true) {
     Allocas.clear();
@@ -90,7 +99,7 @@ bool SROA::runOnFunction(Function &F) {
     // the entry node
     for (BasicBlock::iterator I = BB.begin(), E = --BB.end(); I != E; ++I)
       if (AllocaInst *AI = dyn_cast<AllocaInst>(I)) // Is it an alloca?
-        if (isAllocaPromotable(AI))
+        if (llvm::isAllocaPromotable(AI))
           Allocas.push_back(AI);
 
     if (Allocas.empty())
@@ -100,14 +109,12 @@ bool SROA::runOnFunction(Function &F) {
     NumPromoted += Allocas.size();
     Changed = true;
   }
-  return Changed;
 
-  bool Changed = false;
   return Changed;
 
 }
 
-bool SROA::isPromotable(const AllocaInst) {
-
+bool SROA::isAllocaPromotable(const AllocaInst *AI) {
+  return true;
 }
 
