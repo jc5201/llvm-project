@@ -32,9 +32,12 @@
 #include "llvm/ADT/Statistic.h"
 
 #include "llvm/Analysis/AssumptionCache.h"
+#include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/IR/Constants.h"
+#include <queue>
 
 using namespace llvm;
 
@@ -60,6 +63,9 @@ namespace {
   private:
     // Add fields and helper functions for this pass here.
     bool isAllocaPromotable(const AllocaInst*);
+    bool isAllocaReplaceable(const AllocaInst*);
+    bool isInstU1(const Instruction*);
+    bool isInstU2(const Instruction*);
   };
 }
 
@@ -83,31 +89,87 @@ FunctionPass *createMyScalarReplAggregatesPass() { return new SROA(); }
 // Entry point for the overall ScalarReplAggregates function pass.
 // This function is provided to you.
 bool SROA::runOnFunction(Function &F) {
-
   bool Changed = false;
 
   DominatorTree &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
   AssumptionCache &AC = getAnalysis<AssumptionCacheTracker>().getAssumptionCache(F);
 
-  std::vector<AllocaInst *> Allocas;
+  std::vector<AllocaInst *> PromotableAllocas;
+  std::queue<AllocaInst *> ReplaceableAllocas;
+  PromotableAllocas.clear();
+
+  BasicBlock &GeneratedAllocas = F.getEntryBlock();
+  GeneratedAllocas.splitBasicBlock(GeneratedAllocas.begin());
+  Instruction *T = &GeneratedAllocas.getInstList().back();
+  //GeneratedAllocas = BasicBlock::Create(F.getContext(), "", &F, &F.getEntryBlock());
+
   BasicBlock &BB = F.getEntryBlock(); // Get the entry node for the function
 
-  while (true) {
-    Allocas.clear();
-
-    // Find allocas that are safe to promote, by looking at all instructions in
-    // the entry node
-    for (BasicBlock::iterator I = BB.begin(), E = --BB.end(); I != E; ++I)
-      if (AllocaInst *AI = dyn_cast<AllocaInst>(I)) // Is it an alloca?
+  // Find allocas that are safe to promote, by looking at all instructions in
+  // the entry node
+  for (BasicBlock &BB : F.getBasicBlockList()) {
+    for (BasicBlock::iterator I = BB.begin(), E = --BB.end(); I != E; ++I) {
+      if (AllocaInst *AI = dyn_cast<AllocaInst>(I)) {
         if (SROA::isAllocaPromotable(AI))
-          Allocas.push_back(AI);
+          PromotableAllocas.push_back(AI);
+        else if (SROA::isAllocaReplaceable(AI))
+          ReplaceableAllocas.push(AI);
+      }
+    }
+  }
 
-    if (Allocas.empty())
-      break;
-
-    PromoteMemToReg(Allocas, DT, &AC);
-    NumPromoted += Allocas.size();
+  if (!PromotableAllocas.empty()) {
+    PromoteMemToReg(PromotableAllocas, DT, &AC);
+    NumPromoted += PromotableAllocas.size();
     Changed = true;
+  }
+
+  while(!ReplaceableAllocas.empty()) {
+    PromotableAllocas.clear();
+    AllocaInst *AI = ReplaceableAllocas.front();
+    ReplaceableAllocas.pop();
+
+    StructType *ST = dyn_cast<StructType>(AI->getAllocatedType());
+    assert (ST != NULL);
+    for (unsigned i=0; i < ST->getNumElements(); i++) {
+      Type *ElementType = ST->getElementType(i);
+
+      AllocaInst *NewAlloca = new AllocaInst(ElementType, 0);
+      NewAlloca->insertBefore(T);
+      //GeneratedAllocas.getInstList().insert(T, NewAlloca);
+      Value *NewAllocated = dyn_cast<Value>(NewAlloca);
+
+      bool AIChanged = true;
+      while(AIChanged) {
+        AIChanged = false;
+        assert (isAllocaReplaceable(AI));
+        for (User* U : AI->users()) {
+          if (Instruction *I = dyn_cast<Instruction>(U)) {
+            if (SROA::isInstU1(I)) {
+              GetElementPtrInst *GEPI = dyn_cast<GetElementPtrInst>(I);
+              ConstantInt *C = dyn_cast<ConstantInt>(GEPI->idx_begin() + 1);
+              if (C->getZExtValue() == i) {
+                std::vector<Value *> IdxArray = std::vector<Value*>();
+                for (int j = 0; j < GEPI->getNumIndices(); j++) {
+                  if (j != 1) {
+                    IdxArray.push_back(dyn_cast<Value>(GEPI->idx_begin() + 1));
+                  }
+                }
+                GetElementPtrInst *NewGEPI = GetElementPtrInst::Create(ElementType, NewAllocated, ArrayRef<Value*>(IdxArray));
+                ReplaceInstWithInst(GEPI, NewGEPI);
+                AIChanged = true;
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      if (SROA::isAllocaPromotable(NewAlloca))
+        PromotableAllocas.push_back(NewAlloca);
+      else if (SROA::isAllocaReplaceable(NewAlloca))
+        ReplaceableAllocas.push(NewAlloca);
+    }
   }
 
   return Changed;
@@ -137,4 +199,57 @@ bool SROA::isAllocaPromotable(const AllocaInst *AI) {
 
   return true;
 }
+
+bool SROA::isAllocaReplaceable(const AllocaInst *AI) {
+  if (!dyn_cast<StructType>(AI->getAllocatedType()))
+    return false;
+  for (const User *U : AI->users()) {
+    if (const Instruction *I = dyn_cast<Instruction>(U)) {
+      if (isInstU1(I) || isInstU2(I))
+        continue;
+      else 
+        return false;
+    }
+  }
+
+  return true;
+}
+
+bool SROA::isInstU1(const Instruction *I) {
+  if (const GetElementPtrInst *GEPI = dyn_cast<GetElementPtrInst>(I)) {
+    if (!GEPI->hasAllConstantIndices())
+      return false;
+    if (const ConstantInt *C = dyn_cast<ConstantInt>(GEPI->idx_begin())) {
+      if (C->getZExtValue() != 0)
+        return false;
+    }
+    else return false;
+
+    for (const User *U : GEPI->users()) {
+      if (const Instruction *I = dyn_cast<Instruction>(U)) {
+        if (isInstU1(I)) continue;
+        else if (isInstU2(I)) continue;
+        else if (const LoadInst *LI = dyn_cast<LoadInst>(U)) continue;
+        else if (const StoreInst *SI = dyn_cast<StoreInst>(U)){
+          if (SI->getValueOperand() == I) 
+            return false;
+        }
+        else return false;
+      }
+      else return false;
+    }
+  }
+
+  return true;
+}
+
+bool SROA::isInstU2(const Instruction *I) {
+  if (const ICmpInst *CMP = dyn_cast<ICmpInst>(I))
+    if (CMP->isEquality())
+      if (dyn_cast<ConstantPointerNull>(CMP->getOperand(0)) || dyn_cast<ConstantPointerNull>(CMP->getOperand(1)))
+        return true;
+
+  return false;
+}
+
 
