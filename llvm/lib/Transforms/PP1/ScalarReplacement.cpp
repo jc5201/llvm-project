@@ -22,22 +22,23 @@
 
 #define DEBUG_TYPE "pp1-scalarreplace"
 #include "llvm/Transforms/Scalar.h"
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Dominators.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/Pass.h"
 #include "llvm/Transforms/Utils/PromoteMemToReg.h"
-#include "llvm/Support/Debug.h"
-#include "llvm/ADT/Statistic.h"
-
-#include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
-#include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/Dominators.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Support/Casting.h"
-#include "llvm/IR/Constants.h"
+#include "llvm/ADT/Statistic.h"
+#include "llvm/Analysis/AssumptionCache.h"
+
 #include <queue>
+#include <vector>
 
 using namespace llvm;
 
@@ -101,12 +102,7 @@ bool SROA::runOnFunction(Function &F) {
   BasicBlock &GeneratedAllocas = F.getEntryBlock();
   GeneratedAllocas.splitBasicBlock(GeneratedAllocas.begin());
   Instruction *T = &GeneratedAllocas.getInstList().back();
-  //GeneratedAllocas = BasicBlock::Create(F.getContext(), "", &F, &F.getEntryBlock());
 
-  BasicBlock &BB = F.getEntryBlock(); // Get the entry node for the function
-
-  // Find allocas that are safe to promote, by looking at all instructions in
-  // the entry node
   for (BasicBlock &BB : F.getBasicBlockList()) {
     for (BasicBlock::iterator I = BB.begin(), E = --BB.end(); I != E; ++I) {
       if (AllocaInst *AI = dyn_cast<AllocaInst>(I)) {
@@ -136,7 +132,6 @@ bool SROA::runOnFunction(Function &F) {
 
       AllocaInst *NewAlloca = new AllocaInst(ElementType, 0);
       NewAlloca->insertBefore(T);
-      //GeneratedAllocas.getInstList().insert(T, NewAlloca);
       Value *NewAllocated = dyn_cast<Value>(NewAlloca);
 
       bool AIChanged = true;
@@ -164,9 +159,7 @@ bool SROA::runOnFunction(Function &F) {
           }
           else if (SROA::isInstU2(I)) {
             ICmpInst *CMP = dyn_cast<ICmpInst>(I);
-            //Value* NullPtr = new Constants::LLVMConstPointerNull(CMP->getOperand(0)->getType());
-	    Value* NullPtr = ConstantPointerNull::get(dyn_cast<PointerType>(CMP->getOperand(0)->getType()));
-            //Value* NullPtr = ConstantPointerNull::get(CMP->getOperand(0)->getType());
+            Value* NullPtr = ConstantPointerNull::get(dyn_cast<PointerType>(CMP->getOperand(0)->getType()));
             Instruction* NewCMPI = CmpInst::Create(Instruction::ICmp, CMP->getInversePredicate(), NullPtr, NullPtr);
             ReplaceInstWithInst(CMP, NewCMPI);
             AIChanged = true;
@@ -256,6 +249,7 @@ bool SROA::isInstU1(const Instruction *I) {
       else return false;
     }
   }
+  else return false;
 
   return true;
 }
