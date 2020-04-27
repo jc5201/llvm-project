@@ -144,23 +144,33 @@ bool SROA::runOnFunction(Function &F) {
         AIChanged = false;
         assert (isAllocaReplaceable(AI));
         for (User* U : AI->users()) {
-          if (Instruction *I = dyn_cast<Instruction>(U)) {
-            if (SROA::isInstU1(I)) {
-              GetElementPtrInst *GEPI = dyn_cast<GetElementPtrInst>(I);
-              ConstantInt *C = dyn_cast<ConstantInt>(GEPI->idx_begin() + 1);
-              if (C->getZExtValue() == i) {
-                std::vector<Value *> IdxArray = std::vector<Value*>();
-                for (int j = 0; j < GEPI->getNumIndices(); j++) {
-                  if (j != 1) {
-                    IdxArray.push_back(dyn_cast<Value>(GEPI->idx_begin() + 1));
-                  }
+          Instruction* I = dyn_cast<Instruction>(U);
+          assert (I != NULL);
+          if (SROA::isInstU1(I)) {
+            GetElementPtrInst *GEPI = dyn_cast<GetElementPtrInst>(I);
+            ConstantInt *C = dyn_cast<ConstantInt>(GEPI->idx_begin() + 1);
+            if (C->getZExtValue() == i) {
+              std::vector<Value *> IdxArray = std::vector<Value*>();
+              for (int j = 0; j < GEPI->getNumIndices(); j++) {
+                if (j != 1) {
+                  IdxArray.push_back(dyn_cast<Value>(GEPI->idx_begin() + 1));
                 }
-                GetElementPtrInst *NewGEPI = GetElementPtrInst::Create(ElementType, NewAllocated, ArrayRef<Value*>(IdxArray));
-                ReplaceInstWithInst(GEPI, NewGEPI);
-                AIChanged = true;
-                break;
               }
+              GetElementPtrInst *NewGEPI = GetElementPtrInst::Create(ElementType, NewAllocated, ArrayRef<Value*>(IdxArray));
+              ReplaceInstWithInst(GEPI, NewGEPI);
+              AIChanged = true;
+              break;
             }
+          }
+          else if (SROA::isInstU2(I)) {
+            ICmpInst *CMP = dyn_cast<ICmpInst>(I);
+            //Value* NullPtr = new Constants::LLVMConstPointerNull(CMP->getOperand(0)->getType());
+	    Value* NullPtr = ConstantPointerNull::get(dyn_cast<PointerType>(CMP->getOperand(0)->getType()));
+            //Value* NullPtr = ConstantPointerNull::get(CMP->getOperand(0)->getType());
+            Instruction* NewCMPI = CmpInst::Create(Instruction::ICmp, CMP->getInversePredicate(), NullPtr, NullPtr);
+            ReplaceInstWithInst(CMP, NewCMPI);
+            AIChanged = true;
+            break;
           }
         }
       }
@@ -170,6 +180,14 @@ bool SROA::runOnFunction(Function &F) {
       else if (SROA::isAllocaReplaceable(NewAlloca))
         ReplaceableAllocas.push(NewAlloca);
     }
+
+    if (!PromotableAllocas.empty()) {
+      PromoteMemToReg(PromotableAllocas, DT, &AC);
+      NumPromoted += PromotableAllocas.size();
+    }
+
+    NumReplaced += 1;
+    Changed = true;
   }
 
   return Changed;
@@ -177,7 +195,6 @@ bool SROA::runOnFunction(Function &F) {
 }
 
 bool SROA::isAllocaPromotable(const AllocaInst *AI) {
-
   bool isTypeFirstClass = false;
   Type* t = AI->getAllocatedType();
   if (t->isFPOrFPVectorTy() || t->isIntOrIntVectorTy() || t->isPtrOrPtrVectorTy()) {
