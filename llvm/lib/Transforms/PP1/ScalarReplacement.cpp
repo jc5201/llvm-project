@@ -65,6 +65,7 @@ namespace {
     // Add fields and helper functions for this pass here.
     bool isAllocaPromotable(const AllocaInst*);
     bool isAllocaReplaceable(const AllocaInst*);
+    void replaceAlloca(AllocaInst* InstToBeReplaced, std::vector<AllocaInst *>& PromotableAllocas, std::queue<AllocaInst *>& ReplaceableAllocas, Instruction *InsertBefore);
     bool isInstU1(const Instruction*);
     bool isInstU2(const Instruction*);
   };
@@ -99,9 +100,9 @@ bool SROA::runOnFunction(Function &F) {
   std::queue<AllocaInst *> ReplaceableAllocas;
   PromotableAllocas.clear();
 
-  BasicBlock &GeneratedAllocas = F.getEntryBlock();
-  GeneratedAllocas.splitBasicBlock(GeneratedAllocas.begin());
-  Instruction *T = &GeneratedAllocas.getInstList().back();
+  BasicBlock &NewAllocas = F.getEntryBlock();
+  NewAllocas.splitBasicBlock(NewAllocas.begin());
+  Instruction *InsertTarget = &NewAllocas.getInstList().back();
 
   for (BasicBlock &BB : F.getBasicBlockList()) {
     for (BasicBlock::iterator I = BB.begin(), E = --BB.end(); I != E; ++I) {
@@ -114,72 +115,19 @@ bool SROA::runOnFunction(Function &F) {
     }
   }
 
-  if (!PromotableAllocas.empty()) {
-    PromoteMemToReg(PromotableAllocas, DT, &AC);
-    NumPromoted += PromotableAllocas.size();
-    Changed = true;
-  }
-
   while(!ReplaceableAllocas.empty()) {
-    PromotableAllocas.clear();
     AllocaInst *AI = ReplaceableAllocas.front();
     ReplaceableAllocas.pop();
 
-    StructType *ST = dyn_cast<StructType>(AI->getAllocatedType());
-    assert (ST != NULL);
-    for (unsigned i=0; i < ST->getNumElements(); i++) {
-      Type *ElementType = ST->getElementType(i);
-
-      AllocaInst *NewAlloca = new AllocaInst(ElementType, 0);
-      NewAlloca->insertBefore(T);
-      Value *NewAllocated = dyn_cast<Value>(NewAlloca);
-
-      bool AIChanged = true;
-      while(AIChanged) {
-        AIChanged = false;
-        assert (isAllocaReplaceable(AI));
-        for (User* U : AI->users()) {
-          Instruction* I = dyn_cast<Instruction>(U);
-          assert (I != NULL);
-          if (SROA::isInstU1(I)) {
-            GetElementPtrInst *GEPI = dyn_cast<GetElementPtrInst>(I);
-            ConstantInt *C = dyn_cast<ConstantInt>(GEPI->idx_begin() + 1);
-            if (C->getZExtValue() == i) {
-              std::vector<Value *> IdxArray = std::vector<Value*>();
-              for (int j = 0; j < GEPI->getNumIndices(); j++) {
-                if (j != 1) {
-                  IdxArray.push_back(dyn_cast<Value>(GEPI->idx_begin() + 1));
-                }
-              }
-              GetElementPtrInst *NewGEPI = GetElementPtrInst::Create(ElementType, NewAllocated, ArrayRef<Value*>(IdxArray));
-              ReplaceInstWithInst(GEPI, NewGEPI);
-              AIChanged = true;
-              break;
-            }
-          }
-          else if (SROA::isInstU2(I)) {
-            ICmpInst *CMP = dyn_cast<ICmpInst>(I);
-            Value* NullPtr = ConstantPointerNull::get(dyn_cast<PointerType>(CMP->getOperand(0)->getType()));
-            Instruction* NewCMPI = CmpInst::Create(Instruction::ICmp, CMP->getInversePredicate(), NullPtr, NullPtr);
-            ReplaceInstWithInst(CMP, NewCMPI);
-            AIChanged = true;
-            break;
-          }
-        }
-      }
-
-      if (SROA::isAllocaPromotable(NewAlloca))
-        PromotableAllocas.push_back(NewAlloca);
-      else if (SROA::isAllocaReplaceable(NewAlloca))
-        ReplaceableAllocas.push(NewAlloca);
-    }
-
-    if (!PromotableAllocas.empty()) {
-      PromoteMemToReg(PromotableAllocas, DT, &AC);
-      NumPromoted += PromotableAllocas.size();
-    }
-
+    SROA::replaceAlloca(AI, PromotableAllocas, ReplaceableAllocas, InsertTarget);
+    
     NumReplaced += 1;
+    Changed = true;
+  }
+
+  if (!PromotableAllocas.empty()) {
+    PromoteMemToReg(PromotableAllocas, DT, &AC);
+    NumPromoted += PromotableAllocas.size();
     Changed = true;
   }
 
@@ -211,7 +159,7 @@ bool SROA::isAllocaPromotable(const AllocaInst *AI) {
 }
 
 bool SROA::isAllocaReplaceable(const AllocaInst *AI) {
-  if (!dyn_cast<StructType>(AI->getAllocatedType()))
+  if (!isa<StructType>(AI->getAllocatedType()))
     return false;
   for (const User *U : AI->users()) {
     if (const Instruction *I = dyn_cast<Instruction>(U)) {
@@ -225,9 +173,62 @@ bool SROA::isAllocaReplaceable(const AllocaInst *AI) {
   return true;
 }
 
+void SROA::replaceAlloca(AllocaInst* InstToBeReplaced, std::vector<AllocaInst *>& PromotableAllocas, std::queue<AllocaInst *>& ReplaceableAllocas, Instruction *InsertBefore) {
+  StructType *ST = dyn_cast<StructType>(InstToBeReplaced->getAllocatedType());
+  assert (ST != NULL);
+  int N = ST->getNumElements();
+  std::vector<AllocaInst *> NewAllocas = std::vector<AllocaInst *>(N);
+
+  for (int i=0; i < N; i++) {
+    Type *ElementType = ST->getElementType(i);
+    AllocaInst *NewAlloca = new AllocaInst(ElementType, 0);
+    NewAlloca->insertBefore(InsertBefore);
+    NewAllocas[i] = NewAlloca;
+  }
+
+  while(!InstToBeReplaced->user_empty()) {
+    Instruction* I = dyn_cast<Instruction>(*InstToBeReplaced->user_begin());
+    assert (I != NULL);
+    if (SROA::isInstU1(I)) {
+      GetElementPtrInst *GEPI = dyn_cast<GetElementPtrInst>(I);
+      ConstantInt *C = dyn_cast<ConstantInt>(GEPI->idx_begin() + 1);
+      int ind = C->getZExtValue();
+      if (GEPI->getNumIndices() == 2) {
+        GEPI->replaceAllUsesWith(NewAllocas[ind]);
+        GEPI->eraseFromParent();
+      }
+      else {
+        std::vector<Value *> IdxArray = std::vector<Value*>();
+        for (int j = 0; j < GEPI->getNumIndices(); j++) {
+          if (j != 1) {
+            IdxArray.push_back(dyn_cast<Value>(GEPI->idx_begin() + j));
+          }
+        }
+        GetElementPtrInst *NewGEPI = GetElementPtrInst::Create(NewAllocas[ind]->getAllocatedType(), NewAllocas[ind], ArrayRef<Value*>(IdxArray));
+        ReplaceInstWithInst(GEPI, NewGEPI);
+      }
+    }
+    else if (SROA::isInstU2(I)) {
+      ICmpInst *CMP = dyn_cast<ICmpInst>(I);
+      Value* NullPtr = ConstantPointerNull::get(dyn_cast<PointerType>(CMP->getOperand(0)->getType()));
+      Instruction* NewCMPI = CmpInst::Create(Instruction::ICmp, CMP->getInversePredicate(), NullPtr, NullPtr);
+      ReplaceInstWithInst(CMP, NewCMPI);
+    }
+  }
+
+  for (int i=0; i < N; i++) {
+    if (SROA::isAllocaPromotable(NewAllocas[i]))
+      PromotableAllocas.push_back(NewAllocas[i]);
+    else if (SROA::isAllocaReplaceable(NewAllocas[i]))
+      ReplaceableAllocas.push(NewAllocas[i]);
+  }
+}
+
 bool SROA::isInstU1(const Instruction *I) {
   if (const GetElementPtrInst *GEPI = dyn_cast<GetElementPtrInst>(I)) {
     if (!GEPI->hasAllConstantIndices())
+      return false;
+    if (GEPI->getNumIndices() < 2)
       return false;
     if (const ConstantInt *C = dyn_cast<ConstantInt>(GEPI->idx_begin())) {
       if (C->getZExtValue() != 0)
@@ -236,11 +237,11 @@ bool SROA::isInstU1(const Instruction *I) {
     else return false;
 
     for (const User *U : GEPI->users()) {
-      if (const Instruction *I = dyn_cast<Instruction>(U)) {
-        if (isInstU1(I)) continue;
-        else if (isInstU2(I)) continue;
-        else if (const LoadInst *LI = dyn_cast<LoadInst>(U)) continue;
-        else if (const StoreInst *SI = dyn_cast<StoreInst>(U)){
+      if (const Instruction *UI = dyn_cast<Instruction>(U)) {
+        if (isInstU1(UI)) continue;
+        else if (isInstU2(UI)) continue;
+        else if (isa<LoadInst>(UI)) continue;
+        else if (const StoreInst *SI = dyn_cast<StoreInst>(UI)){
           if (SI->getValueOperand() == I) 
             return false;
         }
