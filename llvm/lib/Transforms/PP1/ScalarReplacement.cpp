@@ -177,7 +177,7 @@ void SROA::replaceAlloca(AllocaInst* InstToBeReplaced, std::vector<AllocaInst *>
   StructType *ST = dyn_cast<StructType>(InstToBeReplaced->getAllocatedType());
   assert (ST != NULL);
   int N = ST->getNumElements();
-  std::vector<AllocaInst *> NewAllocas = std::vector<AllocaInst *>(N);
+  std::vector<AllocaInst *> NewAllocas(N, NULL);
 
   for (int i=0; i < N; i++) {
     Type *ElementType = ST->getElementType(i);
@@ -192,19 +192,19 @@ void SROA::replaceAlloca(AllocaInst* InstToBeReplaced, std::vector<AllocaInst *>
     if (SROA::isInstU1(I)) {
       GetElementPtrInst *GEPI = dyn_cast<GetElementPtrInst>(I);
       ConstantInt *C = dyn_cast<ConstantInt>(GEPI->idx_begin() + 1);
-      int ind = C->getZExtValue();
+      int idx = C->getZExtValue();
       if (GEPI->getNumIndices() == 2) {
-        GEPI->replaceAllUsesWith(NewAllocas[ind]);
+        GEPI->replaceAllUsesWith(NewAllocas[idx]);
         GEPI->eraseFromParent();
       }
       else {
-        std::vector<Value *> IdxArray = std::vector<Value*>();
+        std::vector<Value *> IdxArray;
         for (int j = 0; j < GEPI->getNumIndices(); j++) {
           if (j != 1) {
             IdxArray.push_back(dyn_cast<Value>(GEPI->idx_begin() + j));
           }
         }
-        GetElementPtrInst *NewGEPI = GetElementPtrInst::Create(NewAllocas[ind]->getAllocatedType(), NewAllocas[ind], ArrayRef<Value*>(IdxArray));
+        GetElementPtrInst *NewGEPI = GetElementPtrInst::Create(NewAllocas[idx]->getAllocatedType(), NewAllocas[idx], ArrayRef<Value*>(IdxArray));
         ReplaceInstWithInst(GEPI, NewGEPI);
       }
     }
