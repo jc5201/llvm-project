@@ -501,6 +501,8 @@ void X86PassConfig::addPostRegAlloc() {
 void X86PassConfig::addPreSched2() { addPass(createX86ExpandPseudoPass()); }
 
 void X86PassConfig::addPreEmitPass() {
+  addPass(createUnalignedGadgetRemovalPass());
+
   if (getOptLevel() != CodeGenOpt::None) {
     addPass(new X86ExecutionDomainFix());
     addPass(createBreakFalseDeps());

@@ -20,6 +20,8 @@
 #include "llvm/Target/TargetMachine.h"
 #include <memory>
 
+#include "llvm/Transforms/PP2/UnalignedGadget.h"
+
 namespace llvm {
 
 class StringRef;
