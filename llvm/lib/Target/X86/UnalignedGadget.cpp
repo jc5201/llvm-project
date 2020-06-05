@@ -167,7 +167,7 @@ bool UnalignedGadgetRemoval::changeVulnerableMovnti(MachineInstr &MI) {
   MIB = BuildMI(*MBB, &MI, DL, TII.get(moveOp));
   MachineOperand *MO = new MachineOperand(MI.getOperand(0));
   MIB.add(*MO);
-  *MO = new MachineOperand(MI.getOperand(1));
+  MO = new MachineOperand(MI.getOperand(1));
   MIB.add(*MO);
 
   MI.removeFromParent();
