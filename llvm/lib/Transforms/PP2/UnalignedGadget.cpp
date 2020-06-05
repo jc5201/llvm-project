@@ -12,20 +12,17 @@ static RegisterPass<UnalignedGadgetRemoval> X("pp2",
 
 
 bool UnalignedGadgetRemoval::runOnMachineFunction(MachineFunction &MF) {
-  assert (MF.getTarget().getTargetTriple().getArch() == Triple::ArchType::x86 || MF.getTarget().getTargetTriple().getArch() == Triple::ArchType::x86_64);
-  for (ato &MBB : MF) {
-    for (MachineBasicBlock::instr_iterator II : MF.instrs()) {
-      MachineInstr *MI = dyn_cast<MachineInstr> (II);
+  for (auto &MBB : MF) {
+    for (MachineInstr &MI : MBB.instrs()) {
       if (isVulnerableJmp(MI)) {
         NumJmp++;
       }
-
     }
   }
   return true;
 
 }
 
-bool UnalignedGadgetRemoval::isVulnerableJmp(MachineInstr *MI) {
+bool UnalignedGadgetRemoval::isVulnerableJmp(MachineInstr &MI) {
   return false;
 }

@@ -1,6 +1,5 @@
 #include "gtest/gtest.h"
 #include "llvm/IR/LegacyPassManager.h"
-#include "llvm/Transforms/PP2/UnalignedGadget.h"
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/raw_ostream.h"
@@ -8,6 +7,8 @@
 #include "llvm/Target/TargetOptions.h"
 #include "llvm/CodeGen/MIRParser/MIRParser.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
+
+#include "llvm/Target/X86/X86.h"
   
 #include <cstdio>
 
