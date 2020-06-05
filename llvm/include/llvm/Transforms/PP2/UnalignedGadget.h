@@ -1,27 +1,24 @@
-
 #ifndef LLVM_TRANSFORMS_PP2_H
 #define LLVM_TRANSFORMS_PP2_H
 
-#include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/Dominators.h"
-#include "llvm/IR/Constants.h"
-#include "llvm/IR/DerivedTypes.h"
-#include "llvm/IR/Function.h"
-#include "llvm/IR/Instructions.h"
-#include "llvm/IR/LLVMContext.h"
-#include "llvm/Pass.h"
-#include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#define DEBUG_TYPE "pp2"
+
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/ADT/Triple.h"
 
-#include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
+#include "llvm/CodeGen/MachineFunction.h"
+#include "llvm/CodeGen/MachineBasicBlock.h"
+#include "llvm/CodeGen/MachineInstr.h"
 
 #include <queue>
 #include <vector>
 
 using namespace llvm;
+
+STATISTIC(NumJmp,  "Number of vulnerable jmp instructions");
 
 namespace llvm{
   struct UnalignedGadgetRemoval : public MachineFunctionPass {
@@ -32,9 +29,12 @@ namespace llvm{
     bool runOnMachineFunction(MachineFunction &MF);
 
   private:
+  	bool isVulnerableJmp(MachineInstr &MI);
     // Add fields and helper functions for this pass here.
   };
 }
+
+FunctionPass *createUnalignedGadgetRemovalPass() { return new UnalignedGadgetRemoval(); }
 
 
 #endif

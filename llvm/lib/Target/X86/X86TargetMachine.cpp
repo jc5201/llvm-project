@@ -501,6 +501,7 @@ void X86PassConfig::addPostRegAlloc() {
 void X86PassConfig::addPreSched2() { addPass(createX86ExpandPseudoPass()); }
 
 void X86PassConfig::addPreEmitPass() {
+
   if (getOptLevel() != CodeGenOpt::None) {
     addPass(new X86ExecutionDomainFix());
     addPass(createBreakFalseDeps());
@@ -542,6 +543,8 @@ void X86PassConfig::addPreEmitPass2() {
   // Identify valid longjmp targets for Windows Control Flow Guard.
   if (TT.isOSWindows())
     addPass(createCFGuardLongjmpPass());
+  
+  addPass(createUnalignedGadgetRemovalPass());
 }
 
 std::unique_ptr<CSEConfigBase> X86PassConfig::getCSEConfig() const {

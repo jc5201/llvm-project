@@ -11,7 +11,6 @@ set(LLVM_LINK_COMPONENTS
   X86Desc
   X86Info
   MC
-  PP2
 )
 
 add_llvm_unittest(EmitTests
