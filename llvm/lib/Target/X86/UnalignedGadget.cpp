@@ -191,7 +191,7 @@ bool UnalignedGadgetRemoval::changeVulnerableMovnti(MachineInstr &MI) {
 }
 
 bool UnalignedGadgetRemoval::isVulnerableModrm(MachineInstr &MI) {
-  if (MI.getNumOperand() == 2) {
+  if (MI.getNumOperands() == 2) {
     if (MI.getOperand(0).isReg() && MI.getOperand(1).isReg()){
       if (MI.getOperand(0).getReg() == X86::RAX || MI.getOperand(0).getReg() == X86::EAX
         || MI.getOperand(0).getReg() == X86::AX || MI.getOperand(0).getReg() == X86::AL
@@ -228,6 +228,7 @@ bool UnalignedGadgetRemoval::changeVulnerableModrm(MachineInstr &MI) {
   unsigned int srcReg64 = (srcReg == X86::RDX || srcReg == X86::EDX || srcReg == X86::DX || srcReg == X86::DL) ? X86::RDX : X86::RBX;
   unsigned int destReg = MI.getOperand(0).getReg();
   unsigned int newReg64 = X86::RDI;
+  unsigned int newReg;
   if (srcReg == X86::RDX || srcReg == X86::RBX) newReg = X86::RDI;
   else if (srcReg == X86::EDX || srcReg == X86::EBX) newReg = X86::EDI;
   else newReg = X86::DI;
