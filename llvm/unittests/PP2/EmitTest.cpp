@@ -12,31 +12,6 @@
   
 #include <cstdio>
 
-#define INITIALIZE(SIZE) LLVMInitializeX86TargetInfo(); \
-  LLVMInitializeX86Target(); \
-  LLVMInitializeX86TargetMC(); \
-  LLVMInitializeX86AsmParser(); \
-  LLVMInitializeX86AsmPrinter(); \
-  LLVMContext Context; \
-  std::unique_ptr<LLVMTargetMachine> TM = createX86TargetMachine(); \
-  if (!TM) {ASSERT_TRUE(false);} \
-  StringRef str = StringRef(code); \
-  std::unique_ptr<MemoryBuffer> MBuffer = MemoryBuffer::getMemBuffer(str); \
-  std::unique_ptr<MIRParser> MIR = createMIRParser(std::move(MBuffer), Context); \
-  std::unique_ptr<Module> M = MIR->parseIRModule(); \
-  M->setTargetTriple(TM->getTargetTriple().getTriple()); \
-  DataLayout DL = TM->createDataLayout(); \
-  M->setDataLayout(DL); \
-  MachineModuleInfoWrapperPass *MMIWP = new MachineModuleInfoWrapperPass(&*TM); \
-  if (MIR->parseMachineFunctions(*M, MMIWP->getMMI())) { ASSERT_TRUE(false);} \
-  legacy::PassManager PM; \
-  SmallVector<char, SIZE > *buf = new SmallVector<char, SIZE >(); \
-  raw_svector_ostream&& out = raw_svector_ostream(*buf); \
-  if (TM->addPassesToEmitFile(PM, out, nullptr, CGFT_ObjectFile)) {printf("failed addPassesToEmitFile\n"); } \
-  PM.add(MMIWP); \
-  PM.add(new UnalignedGadgetRemoval()); \
-  PM.run(*M);
-
 using namespace llvm;
 
 namespace {
@@ -220,30 +195,18 @@ body:             |\n\
 
   printf("[Info] The size of the object is %d bytes.\n", s1.size());
   // printf("%s\n", s1.str().c_str());
-  int cnt = 0;
-  unsigned char ch[12800];
+  bool prev_0f = false;
+  unsigned char ch, _0f, c3;
+  _0f = 15;
+  c3 = 195;
   for (auto itr = buf->begin(), end = buf->end(); itr != end; ++itr) {
-    ch[cnt]=*(itr);
-    cnt++;
-  }
-
-  for (int i = 0; i < cnt / 16; i++) {
-    for (int j = 0; j < 4; j++) {
-      int base = 16 * i + 4 * j;
-      printf("0x%02X%02X%02X%02X ", ch[base], ch[base + 1], ch[base + 2], ch[base + 3]);
-    }
-    printf("\n");
-  }
-  for (int i = 0; i < cnt % 16 / 4; i++) {
-    int base = cnt - (cnt % 16 ) + 4 * i;
-    printf("0x%02X%02X%02X%02X ", ch[base], ch[base + 1], ch[base + 2], ch[base + 3]);
-  }
-  printf("\n");
-  if (cnt % 4 != 0) {
-    printf("0x");
-    for (int i = 0; i < cnt % 4; i++) {
-      printf("%02X", ch[cnt - 4 * (cnt % 4) + i]);
-    }
+    ch = *(itr);
+    if (ch == c3) {
+      ASSERT_TRUE (!prev_0f);
+    } else if (ch == _0f) {
+      prev_0f = true;
+    } else {
+      prev_0f = false;
   }
 }
 
@@ -474,3 +437,30 @@ body:             |\n\
 }
 }
 
+/*
+  int cnt = 0;
+  unsigned char ch[12800];
+  for (auto itr = buf->begin(), end = buf->end(); itr != end; ++itr) {
+    ch[cnt]=*(itr);
+    cnt++;
+  }
+
+  for (int i = 0; i < cnt / 16; i++) {
+    for (int j = 0; j < 4; j++) {
+      int base = 16 * i + 4 * j;
+      printf("0x%02X%02X%02X%02X ", ch[base], ch[base + 1], ch[base + 2], ch[base + 3]);
+    }
+    printf("\n");
+  }
+  for (int i = 0; i < cnt % 16 / 4; i++) {
+    int base = cnt - (cnt % 16 ) + 4 * i;
+    printf("0x%02X%02X%02X%02X ", ch[base], ch[base + 1], ch[base + 2], ch[base + 3]);
+  }
+  printf("\n");
+  if (cnt % 4 != 0) {
+    printf("0x");
+    for (int i = 0; i < cnt % 4; i++) {
+      printf("%02X", ch[cnt - 4 * (cnt % 4) + i]);
+    }
+  }
+*/
