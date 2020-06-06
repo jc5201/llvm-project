@@ -29,10 +29,9 @@ STATISTIC(NumJmp,  "Number of vulnerable jmp instructions");
 
 namespace {
   struct UnalignedGadgetRemoval : public MachineFunctionPass {
-    static char ID; // Pass identification
+    static char ID; 
     UnalignedGadgetRemoval() : MachineFunctionPass(ID) { };
 
-    // Entry point for the overall scalar-replacement pass
     bool runOnMachineFunction(MachineFunction &MF);
 
 
@@ -51,7 +50,6 @@ namespace {
     void changeVulnerableMovnti(MachineInstr &MI);
     bool isVulnerableModrm(MachineInstr &MI);
     void changeVulnerableModrm(MachineInstr &MI);
-    // Add fields and helper functions for this pass here.
   };
 }
 
@@ -153,14 +151,15 @@ void UnalignedGadgetRemoval::changeVulnerableBswap(MachineInstr &MI) {
 
   unsigned int oldReg = MI.getOperand(0).getReg();
   bool is32 = MI.getOpcode() == X86::BSWAP32r;
-  unsigned int newReg = is32 ? X86::ECX : X86::RCX;
+  unsigned int newReg = is32 ? X86::EDI : X86::RDI;
+  unsigned int newReg64 = X86::RDI;
   unsigned int moveOp = is32 ? X86::MOV32rr : X86::MOV64rr;
 
-  MIB = BuildMI(*MBB, &MI, DL, TII.get(X86::PUSH64r)).addReg(X86::RCX, RegState::Kill);
+  MIB = BuildMI(*MBB, &MI, DL, TII.get(X86::PUSH64r)).addReg(newReg64, RegState::Kill);
   MIB = BuildMI(*MBB, &MI, DL, TII.get(moveOp)).addReg(newReg).addReg(oldReg);
   MIB = BuildMI(*MBB, &MI, DL, TII.get(MI.getOpcode())).addReg(newReg, RegState::Define).addReg(newReg, RegState::Kill);
   MIB = BuildMI(*MBB, &MI, DL, TII.get(moveOp)).addReg(oldReg).addReg(newReg);
-  MIB = BuildMI(*MBB, &MI, DL, TII.get(X86::POP64r)).addReg(X86::RCX, RegState::Define);
+  MIB = BuildMI(*MBB, &MI, DL, TII.get(X86::POP64r)).addReg(newReg64, RegState::Define);
 
   MI.eraseFromParent();
 }
