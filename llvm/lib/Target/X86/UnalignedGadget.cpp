@@ -70,24 +70,34 @@ bool UnalignedGadgetRemoval::runOnMachineFunction(MachineFunction &MF) {
   MachineModuleInfo &MMI =
       getAnalysis<MachineModuleInfoWrapperPass>().getMMI();
   for (auto &MBB : MF) {
-    for (MachineInstr &MI : MBB.instrs()) {
-      if (isVulnerableJmp(MI)) {
-        errs() << "Found vulnerable jmp op\n" ;
-      }
-      else if (isVulnerableBswap(MI)) {
-        changeVulnerableBswap(MI);
-        changed = true;
-        errs() << "Found vulnerable bswap op\n" ;
-      }
-      else if (isVulnerableMovnti(MI)) {
-        changeVulnerableMovnti(MI);
-        changed = true;
-        errs() << "Found vulnerable movnti op\n" ;
-      }
-      if (isVulnerableModrm(MI)) {
-        changeVulnerableModrm(MI);
-        changed = true;
-        errs() << "Found vulnerable modrm\n" ;
+    bool repeatLoop = true;
+    while (repeatLoop) {
+      repeatLoop = false;
+      for (MachineInstr &MI : MBB.instrs()) {
+        if (isVulnerableJmp(MI)) {
+          errs() << "Found vulnerable jmp op\n" ;
+        }
+        else if (isVulnerableBswap(MI)) {
+          errs() << "Found vulnerable bswap op\n" ;
+          changeVulnerableBswap(MI);
+          changed = true;
+          repeatLoop = true;
+          break;
+        }
+        else if (isVulnerableMovnti(MI)) {
+          errs() << "Found vulnerable movnti op\n" ;
+          changeVulnerableMovnti(MI);
+          changed = true;
+          repeatLoop = true;
+          break;
+        }
+        if (isVulnerableModrm(MI)) {
+          errs() << "Found vulnerable modrm\n" ;
+          changeVulnerableModrm(MI);
+          changed = true;
+          repeatLoop = true;
+          break;
+        }
       }
     }
   }
