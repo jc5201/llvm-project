@@ -37,18 +37,20 @@ namespace {
 
 
     void getAnalysisUsage(AnalysisUsage &AU) const override {
+      AU.setPreservesCFG();
       AU.addRequired<MachineModuleInfoWrapperPass>();
       AU.addPreserved<MachineModuleInfoWrapperPass>();
+      MachineFunctionPass::getAnalysisUsage(AU);
     }
 
   private:
     bool isVulnerableJmp(MachineInstr &MI);
     bool isVulnerableBswap(MachineInstr &MI);
-    bool changeVulnerableBswap(MachineInstr &MI);
+    void changeVulnerableBswap(MachineInstr &MI);
     bool isVulnerableMovnti(MachineInstr &MI);
-    bool changeVulnerableMovnti(MachineInstr &MI);
+    void changeVulnerableMovnti(MachineInstr &MI);
     bool isVulnerableModrm(MachineInstr &MI);
-    bool changeVulnerableModrm(MachineInstr &MI);
+    void changeVulnerableModrm(MachineInstr &MI);
     // Add fields and helper functions for this pass here.
   };
 }
@@ -118,7 +120,7 @@ bool UnalignedGadgetRemoval::isVulnerableJmp(MachineInstr &MI) {
     }
     else if (MI.getOperand(0).isBlockAddress() || MI.getOperand(0).isGlobal() || MI.getOperand(0).isMCSymbol() || MI.getOperand(0).isSymbol() || MI.getOperand(0).isTargetIndex()) {
       int64_t offset = MI.getOperand(0).getOffset();
-      if ((offset - length) & 0xff == 0xc3)
+      if (((offset - length) & 0xff) == 0xc3)
         return true;
       else
         return false;
@@ -141,7 +143,7 @@ bool UnalignedGadgetRemoval::isVulnerableBswap(MachineInstr &MI) {
 }
 
 
-bool UnalignedGadgetRemoval::changeVulnerableBswap(MachineInstr &MI) {
+void UnalignedGadgetRemoval::changeVulnerableBswap(MachineInstr &MI) {
   MachineBasicBlock *MBB =  MI.getParent();
   MachineFunction *MF = MBB->getParent();
   const X86Subtarget &STI = MF->getSubtarget<X86Subtarget>();
@@ -160,7 +162,7 @@ bool UnalignedGadgetRemoval::changeVulnerableBswap(MachineInstr &MI) {
   MIB = BuildMI(*MBB, &MI, DL, TII.get(moveOp)).addReg(oldReg).addReg(newReg);
   MIB = BuildMI(*MBB, &MI, DL, TII.get(X86::POP64r)).addReg(X86::RCX, RegState::Define);
 
-  MI.removeFromParent();
+  MI.eraseFromParent();
 }
 
 bool UnalignedGadgetRemoval::isVulnerableMovnti(MachineInstr &MI) {
@@ -170,7 +172,7 @@ bool UnalignedGadgetRemoval::isVulnerableMovnti(MachineInstr &MI) {
     return false;
 }
 
-bool UnalignedGadgetRemoval::changeVulnerableMovnti(MachineInstr &MI) {
+void UnalignedGadgetRemoval::changeVulnerableMovnti(MachineInstr &MI) {
   MachineBasicBlock *MBB =  MI.getParent();
   MachineFunction *MF = MBB->getParent();
   const X86Subtarget &STI = MF->getSubtarget<X86Subtarget>();
@@ -182,12 +184,12 @@ bool UnalignedGadgetRemoval::changeVulnerableMovnti(MachineInstr &MI) {
   unsigned int moveOp = is32 ? X86::MOV32mr : X86::MOV64mr;
 
   MIB = BuildMI(*MBB, &MI, DL, TII.get(moveOp));
-  MachineOperand *MO = new MachineOperand(MI.getOperand(0));
-  MIB.add(*MO);
-  MO = new MachineOperand(MI.getOperand(1));
-  MIB.add(*MO);
+  for (int i=0; i < MI.getNumOperands(); i++) {  
+    MachineOperand *MO = new MachineOperand(MI.getOperand(i));
+    MIB.add(*MO);
+  }
 
-  MI.removeFromParent();
+  MI.eraseFromParent();
 }
 
 bool UnalignedGadgetRemoval::isVulnerableModrm(MachineInstr &MI) {
@@ -197,10 +199,10 @@ bool UnalignedGadgetRemoval::isVulnerableModrm(MachineInstr &MI) {
         || MI.getOperand(0).getReg() == X86::AX || MI.getOperand(0).getReg() == X86::AL
         || MI.getOperand(0).getReg() == X86::RCX || MI.getOperand(0).getReg() == X86::ECX
         || MI.getOperand(0).getReg() == X86::CX || MI.getOperand(0).getReg() == X86::CL) {
-        if (MI.getOperand(1).getReg() == X86::RDX || MI.getOperand(0).getReg() == X86::EDX
-          || MI.getOperand(1).getReg() == X86::DX || MI.getOperand(0).getReg() == X86::DL
-          || MI.getOperand(1).getReg() == X86::RBX || MI.getOperand(0).getReg() == X86::EBX
-          || MI.getOperand(1).getReg() == X86::BX || MI.getOperand(0).getReg() == X86::BL) {
+        if (MI.getOperand(1).getReg() == X86::RDX || MI.getOperand(1).getReg() == X86::EDX
+          || MI.getOperand(1).getReg() == X86::DX || MI.getOperand(1).getReg() == X86::DL
+          || MI.getOperand(1).getReg() == X86::RBX || MI.getOperand(1).getReg() == X86::EBX
+          || MI.getOperand(1).getReg() == X86::BX || MI.getOperand(1).getReg() == X86::BL) {
           return true;
         }
         else 
@@ -216,7 +218,7 @@ bool UnalignedGadgetRemoval::isVulnerableModrm(MachineInstr &MI) {
     return false;
 }
 
-bool UnalignedGadgetRemoval::changeVulnerableModrm(MachineInstr &MI) {
+void UnalignedGadgetRemoval::changeVulnerableModrm(MachineInstr &MI) {
   MachineBasicBlock *MBB =  MI.getParent();
   MachineFunction *MF = MBB->getParent();
   const X86Subtarget &STI = MF->getSubtarget<X86Subtarget>();
@@ -238,7 +240,7 @@ bool UnalignedGadgetRemoval::changeVulnerableModrm(MachineInstr &MI) {
   MIB = BuildMI(*MBB, &MI, DL, TII.get(MI.getOpcode())).addReg(destReg, RegState::Define).addReg(newReg, RegState::Kill);
   MIB = BuildMI(*MBB, &MI, DL, TII.get(X86::POP64r)).addReg(newReg64, RegState::Define);
 
-  MI.removeFromParent();
+  MI.eraseFromParent();
 }
 
 #endif
