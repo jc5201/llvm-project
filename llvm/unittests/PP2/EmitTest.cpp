@@ -8,7 +8,8 @@
 #include "llvm/CodeGen/MIRParser/MIRParser.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
 
-#include "llvm/Target/X86/X86.h"
+#include "X86.h"
+#include "UnalignedGadget.cpp"
   
 #include <cstdio>
 
@@ -207,10 +208,11 @@ body:             |\n\
       prev_0f = true;
     } else {
       prev_0f = false;
+    }
   }
 }
 
-TEST(TEST_TEST, TEST_TEST) {
+TEST(EMIT_TEST, TEST_TEST) {
   const char * code = "--- |\n\
   ; ModuleID = 'asd.ll'\n\
   source_filename = \"a.c\"\n\
