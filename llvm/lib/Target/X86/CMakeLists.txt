@@ -70,6 +70,8 @@ set(sources
   X86WinAllocaExpander.cpp
   X86WinEHState.cpp
   UnalignedGadget.cpp
+  Assembler.cpp
+  # GFreeAssembler.cpp
   )
 
 add_llvm_target(X86CodeGen ${sources})

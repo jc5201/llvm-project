@@ -20,8 +20,11 @@
 #include "X86InstrInfo.h"
 #include "X86InstrBuilder.h"
 
+#include "Assembler.h"
+
 #include <queue>
 #include <vector>
+#include <cstdio>
 
 using namespace llvm;
 
@@ -64,6 +67,11 @@ char UnalignedGadgetRemoval::ID = 0;
 
 bool UnalignedGadgetRemoval::runOnMachineFunction(MachineFunction &MF) {
   bool changed = false;
+
+  // PP2Assembler* p2a = new PP2Assembler();
+  // std::vector<unsigned char>vec = p2a->getMC(MF);
+  // printf("XXXXXXX Vector size %d", vec.size());
+  // delete p2a;
 
   MachineModuleInfo &MMI =
       getAnalysis<MachineModuleInfoWrapperPass>().getMMI();
