@@ -15,6 +15,7 @@
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/VirtRegMap.h"
+#include "llvm/CodeGen/RegisterClassInfo.h"
 
 #include "X86.h"
 #include "X86Subtarget.h"
@@ -41,6 +42,7 @@ namespace {
 
     void getAnalysisUsage(AnalysisUsage &AU) const override {
       AU.setPreservesCFG();
+      AU.addRequired<VirtRegMap>();
       AU.addRequired<MachineModuleInfoWrapperPass>();
       AU.addPreserved<MachineModuleInfoWrapperPass>();
       MachineFunctionPass::getAnalysisUsage(AU);
@@ -71,15 +73,22 @@ char UnalignedGadgetRemoval::ID = 0;
 bool UnalignedGadgetRemoval::runOnMachineFunction(MachineFunction &MF) {
   bool changed = false;
 
-  GFreeAssembler *Assembler = new GFreeAssembler(MF, &getAnalysis<VirtRegMap>());
-
   MachineModuleInfo &MMI =
       getAnalysis<MachineModuleInfoWrapperPass>().getMMI();
+
+  RegisterClassInfo RegClassInfo;
+  VirtRegMap * VRM = &getAnalysis<VirtRegMap>();
+  MF.getSubtarget().getRegisterInfo();
+  RegClassInfo.runOnMachineFunction(VRM->getMachineFunction());
+
+  GFreeAssembler *Assembler = new GFreeAssembler(MF, VRM);
   for (auto &MBB : MF) {
     bool repeatLoop = true;
     while (repeatLoop) {
       repeatLoop = false;
       for (MachineInstr &MI : MBB.instrs()) {
+        std::vector<unsigned char> MIBytes = Assembler->MachineInstrToBytes(&MI);
+        for (auto ch : MIBytes) {errs() << ch;} errs() << "\n";
         if (isVulnerableJmp(MI)) {
           errs() << "Found vulnerable jmp op\n" ;
         }

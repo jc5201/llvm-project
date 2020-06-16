@@ -52,9 +52,10 @@ GFreeAssembler::GFreeAssembler(MachineFunction &MF, VirtRegMap *VRMap){
 				 TM.Options,
          None, None, CodeGenOpt::Default));
 
-  Printer = static_cast<X86AsmPrinter*>(T.createAsmPrinter(*tmpTM, std::unique_ptr<MCStreamer>(NullStreamer)));  
+  Printer = new X86AsmPrinter(*tmpTM, std::unique_ptr<MCStreamer>(NullStreamer));
   Printer->setSubtarget(&MF.getSubtarget<X86Subtarget>());
   // Finally(!) create an X86MCInstLower object.
+  Printer->SetupMachineFunction(MF);
   MCInstLower = new gfree::X86MCInstLower(MF, *Printer);
 }
 
