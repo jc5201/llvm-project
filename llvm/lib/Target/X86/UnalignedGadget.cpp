@@ -60,6 +60,8 @@ namespace {
     void changeVulnerableMovnti(MachineInstr &MI);
     bool isVulnerableModrm(MachineInstr &MI);
     void changeVulnerableModrm(MachineInstr &MI);
+    bool isVulnerableSIB(MachineInstr &MI);
+    void changeVulnerableSIB(MachineInstr &MI);
   };
 }
 
@@ -112,8 +114,15 @@ bool UnalignedGadgetRemoval::runOnMachineFunction(MachineFunction &MF) {
           break;
         }
         if (isVulnerableModrm(MI)) {
-          errs() << "Found vulnerable modrm\n" ;
+          errs() << "Found vulnerable ModR/M\n" ;
           changeVulnerableModrm(MI);
+          changed = true;
+          repeatLoop = true;
+          break;
+        }
+        else if (isVulnerableSIB(MI)) {
+          errs() << "Found vulnerable SIM\n" ;
+          changeVulnerableSIB(MI);
           changed = true;
           repeatLoop = true;
           break;
@@ -268,6 +277,49 @@ void UnalignedGadgetRemoval::changeVulnerableModrm(MachineInstr &MI) {
   MIB = BuildMI(*MBB, &MI, DL, TII.get(X86::MOV64rr)).addReg(newReg64).addReg(srcReg64);
   MIB = BuildMI(*MBB, &MI, DL, TII.get(MI.getOpcode())).addReg(destReg, RegState::Define).addReg(newReg, RegState::Kill);
   MIB = BuildMI(*MBB, &MI, DL, TII.get(X86::POP64r)).addReg(newReg64, RegState::Define);
+
+  MI.eraseFromParent();
+}
+
+bool UnalignedGadgetRemoval::isVulnerableSIB(MachineInstr &MI) {
+  if (MI.getNumOperands() == 5) {
+    X86AddressMode AM = getAddressFromInstr(&MI, 1);
+    if (AM.BaseType == X86AddressMode::RegBase && AM.Scale == 8) {
+      if ((AM.Base.Reg == 2 || AM.Base.Reg == 3) && (AM.IndexReg == 0 || AM.IndexReg == 1))
+        return true;
+      else
+        return false;
+    }
+    else
+      return false;
+    
+  }
+  else
+    return false;
+}
+
+void UnalignedGadgetRemoval::changeVulnerableSIB(MachineInstr &MI) {
+  MachineBasicBlock *MBB =  MI.getParent();
+  MachineFunction *MF = MBB->getParent();
+  const X86Subtarget &STI = MF->getSubtarget<X86Subtarget>();
+  const X86InstrInfo &TII = *STI.getInstrInfo();
+  DebugLoc DL = MI.getDebugLoc();
+  MachineInstrBuilder MIB;
+
+  assert(MI.getNumOperands() == 5);
+
+  X86AddressMode AM = getAddressFromInstr(&MI, 1);
+
+  unsigned int srcReg = MI.getOperand(3).getReg();
+  unsigned int newReg = X86::RDI;
+
+  AM.IndexReg = newReg;
+
+  MIB = BuildMI(*MBB, &MI, DL, TII.get(X86::PUSH64r)).addReg(newReg, RegState::Kill);
+  MIB = BuildMI(*MBB, &MI, DL, TII.get(X86::MOV64rr)).addReg(newReg).addReg(srcReg);
+  MIB = BuildMI(*MBB, &MI, DL, TII.get(MI.getOpcode())).addReg(MI.getOperand(0).getReg());
+  addFullAddress(MIB, AM);
+  MIB = BuildMI(*MBB, &MI, DL, TII.get(X86::POP64r)).addReg(newReg, RegState::Define);
 
   MI.eraseFromParent();
 }
