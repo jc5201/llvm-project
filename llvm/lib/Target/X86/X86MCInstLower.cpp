@@ -11,7 +11,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "X86MCInstLower.h"
 #include "MCTargetDesc/X86ATTInstPrinter.h"
 #include "MCTargetDesc/X86BaseInfo.h"
 #include "MCTargetDesc/X86InstComments.h"
@@ -46,6 +45,32 @@
 #include "llvm/Target/TargetLoweringObjectFile.h"
 
 using namespace llvm;
+
+namespace {
+
+/// X86MCInstLower - This class is used to lower an MachineInstr into an MCInst.
+class X86MCInstLower {
+  MCContext &Ctx;
+  const MachineFunction &MF;
+  const TargetMachine &TM;
+  const MCAsmInfo &MAI;
+  X86AsmPrinter &AsmPrinter;
+
+public:
+  X86MCInstLower(const MachineFunction &MF, X86AsmPrinter &asmprinter);
+
+  Optional<MCOperand> LowerMachineOperand(const MachineInstr *MI,
+                                          const MachineOperand &MO) const;
+  void Lower(const MachineInstr *MI, MCInst &OutMI) const;
+
+  MCSymbol *GetSymbolFromOperand(const MachineOperand &MO) const;
+  MCOperand LowerSymbolOperand(const MachineOperand &MO, MCSymbol *Sym) const;
+
+private:
+  MachineModuleInfoMachO &getMachOMMI() const;
+};
+
+} // end anonymous namespace
 
 // Emit a minimal sequence of nops spanning NumBytes bytes.
 static void EmitNops(MCStreamer &OS, unsigned NumBytes, bool Is64Bit,

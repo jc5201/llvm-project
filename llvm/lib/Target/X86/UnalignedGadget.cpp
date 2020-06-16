@@ -14,13 +14,14 @@
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
+#include "llvm/CodeGen/VirtRegMap.h"
 
 #include "X86.h"
 #include "X86Subtarget.h"
 #include "X86InstrInfo.h"
 #include "X86InstrBuilder.h"
 
-#include "Assembler.h"
+#include "GFreeAssembler.h"
 
 #include <queue>
 #include <vector>
@@ -68,10 +69,7 @@ char UnalignedGadgetRemoval::ID = 0;
 bool UnalignedGadgetRemoval::runOnMachineFunction(MachineFunction &MF) {
   bool changed = false;
 
-  // PP2Assembler* p2a = new PP2Assembler();
-  // std::vector<unsigned char>vec = p2a->getMC(MF);
-  // printf("XXXXXXX Vector size %d", vec.size());
-  // delete p2a;
+  GFreeAssembler *Assembler = new GFreeAssembler(MF, &getAnalysis<VirtRegMap>());
 
   MachineModuleInfo &MMI =
       getAnalysis<MachineModuleInfoWrapperPass>().getMMI();
