@@ -159,9 +159,9 @@ bool GFreeAssembler::LowerSubregToReg(MachineInstr *MI) {
   unsigned SubIdx  = MI->getOperand(3).getImm();
   assert(SubIdx != 0 && "Invalid index for insert_subreg");
   unsigned DstSubReg = TRI->getSubReg(DstReg, SubIdx);
-  assert(TargetRegisterInfo::isPhysicalRegister(DstReg) &&
+  assert(Register::isPhysicalRegister(DstReg) &&
          "Insert destination must be in a physical register");
-  assert(TargetRegisterInfo::isPhysicalRegister(InsReg) &&
+  assert(Register::isPhysicalRegister(InsReg) &&
          "Inserted value must be in a physical register");
   
   // GFreeDEBUG(dbgs() << "subreg: CONVERTING: " << *MI);  

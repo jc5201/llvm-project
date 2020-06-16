@@ -49,7 +49,10 @@ namespace {
     }
 
   private:
-    bool isVulnerableJmp(MachineInstr &MI);
+    // TODO: checking vulnerable jmp should be handled in a separated pass
+    //   because it should be checked at the last part.
+    bool isVulnerableJmp(MachineInstr &MI, const std::vector<unsigned char> MIBytes);
+    void changeVulnerableJmp(MachineInstr &MI);
     bool isVulnerableBswap(MachineInstr &MI);
     void changeVulnerableBswap(MachineInstr &MI);
     bool isVulnerableMovnti(MachineInstr &MI);
@@ -88,7 +91,7 @@ bool UnalignedGadgetRemoval::runOnMachineFunction(MachineFunction &MF) {
       repeatLoop = false;
       for (MachineInstr &MI : MBB.instrs()) {
         std::vector<unsigned char> MIBytes = Assembler->MachineInstrToBytes(&MI);
-        for (auto ch : MIBytes) {errs() << ch;} errs() << "\n";
+        for (auto ch : MIBytes) {errs() << '|' << (unsigned int)ch;} errs() << "\n";
         if (isVulnerableJmp(MI)) {
           errs() << "Found vulnerable jmp op\n" ;
         }
@@ -119,27 +122,30 @@ bool UnalignedGadgetRemoval::runOnMachineFunction(MachineFunction &MF) {
   return changed;
 }
 
-bool UnalignedGadgetRemoval::isVulnerableJmp(MachineInstr &MI) {
+bool UnalignedGadgetRemoval::isVulnerableJmp(MachineInstr &MI, const std::vector<unsigned char> MIBytes) {
   if (MI.getOpcode() == X86::JMP_1 || MI.getOpcode() == X86::JCC_1) {
-    int length;
-    if (MI.getOpcode() == X86::JMP_1)
-      length = 5;
-    else if (MI.getOpcode() == X86::JCC_1)
-      length = 6;
-
-    if (MI.getOperand(0).isMBB()) {
-      //TODO
-      return false;
-    }
-    else if (MI.getOperand(0).isBlockAddress() || MI.getOperand(0).isGlobal() || MI.getOperand(0).isMCSymbol() || MI.getOperand(0).isSymbol() || MI.getOperand(0).isTargetIndex()) {
-      int64_t offset = MI.getOperand(0).getOffset();
-      if (((offset - length) & 0xff) == 0xc3)
+    for (char ch : MIBytes) {
+      if (ch == 0xc2 || ch == 0xc3 || ch == 0xca || ch == 0xcb) //TODO: if 0xc2 is not last byte of offset?
         return true;
-      else
-        return false;
+      else continue;
     }
+    return false;
   }
   return false;
+}
+
+void UnalignedGadgetRemoval::changeVulnerableJmp(MachineInstr &MI) {
+  MachineBasicBlock *MBB =  MI.getParent();
+  MachineFunction *MF = MBB->getParent();
+  const X86Subtarget &STI = MF->getSubtarget<X86Subtarget>();
+  const X86InstrInfo &TII = *STI.getInstrInfo();
+  DebugLoc DL = MI.getDebugLoc();
+  MachineInstrBuilder MIB; 
+
+  MIB = BuildMI(*MBB, &MI, DL, TII.get(X86::NOOP));
+  MIB = BuildMI(*MBB, &MI, DL, TII.get(X86::NOOP));
+
+  MI.eraseFromParent();
 }
 
 bool UnalignedGadgetRemoval::isVulnerableBswap(MachineInstr &MI) {
