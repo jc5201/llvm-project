@@ -73,6 +73,7 @@ set(sources
   Assembler.cpp
   GFreeAssembler.cpp
   X86GFreeUtils.cpp
+  GFreeX86MCInstLower.cpp
   )
 
 add_llvm_target(X86CodeGen ${sources})

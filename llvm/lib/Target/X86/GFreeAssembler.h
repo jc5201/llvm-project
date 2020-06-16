@@ -18,7 +18,7 @@ namespace llvm {
     std::unique_ptr<MCCodeEmitter> CodeEmitter;
     MCStreamer *S;
     X86AsmPrinter *Printer;
-    X86MCInstLower *MCInstLower;
+    gfree::X86MCInstLower *MCInstLower;
     const MCSubtargetInfo *STI;
     const TargetRegisterInfo *TRI;
     const TargetInstrInfo *TII;

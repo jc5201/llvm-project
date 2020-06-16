@@ -55,7 +55,7 @@ GFreeAssembler::GFreeAssembler(MachineFunction &MF, VirtRegMap *VRMap){
   Printer = static_cast<X86AsmPrinter*>(T.createAsmPrinter(*tmpTM, std::unique_ptr<MCStreamer>(NullStreamer)));  
   Printer->setSubtarget(&MF.getSubtarget<X86Subtarget>());
   // Finally(!) create an X86MCInstLower object.
-  MCInstLower = new X86MCInstLower(MF, *Printer);
+  MCInstLower = new gfree::X86MCInstLower(MF, *Printer);
 }
 
 GFreeAssembler::~GFreeAssembler(){
