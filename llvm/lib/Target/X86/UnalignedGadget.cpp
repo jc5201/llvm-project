@@ -16,6 +16,7 @@
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/VirtRegMap.h"
 #include "llvm/CodeGen/RegisterClassInfo.h"
+#include "llvm/CodeGen/TargetRegisterInfo.h"
 
 #include "X86.h"
 #include "X86Subtarget.h"
@@ -79,12 +80,9 @@ bool UnalignedGadgetRemoval::runOnMachineFunction(MachineFunction &MF) {
   MachineModuleInfo &MMI =
       getAnalysis<MachineModuleInfoWrapperPass>().getMMI();
 
-  RegisterClassInfo RegClassInfo;
   VirtRegMap * VRM = &getAnalysis<VirtRegMap>();
-  MF.getSubtarget().getRegisterInfo();
-  RegClassInfo.runOnMachineFunction(VRM->getMachineFunction());
-
   GFreeAssembler *Assembler = new GFreeAssembler(MF, VRM);
+
   for (auto &MBB : MF) {
     bool repeatLoop = true;
     while (repeatLoop) {
@@ -92,8 +90,12 @@ bool UnalignedGadgetRemoval::runOnMachineFunction(MachineFunction &MF) {
       for (MachineInstr &MI : MBB.instrs()) {
         std::vector<unsigned char> MIBytes = Assembler->MachineInstrToBytes(&MI);
         for (auto ch : MIBytes) {errs() << '|' << (unsigned int)ch;} errs() << "\n";
-        if (isVulnerableJmp(MI)) {
+        if (isVulnerableJmp(MI, MIBytes)) {
           errs() << "Found vulnerable jmp op\n" ;
+          changeVulnerableJmp(MI);
+          changed = true;
+          repeatLoop = true;
+          break;
         }
         else if (isVulnerableBswap(MI)) {
           errs() << "Found vulnerable bswap op\n" ;
@@ -142,10 +144,17 @@ void UnalignedGadgetRemoval::changeVulnerableJmp(MachineInstr &MI) {
   DebugLoc DL = MI.getDebugLoc();
   MachineInstrBuilder MIB; 
 
-  MIB = BuildMI(*MBB, &MI, DL, TII.get(X86::NOOP));
-  MIB = BuildMI(*MBB, &MI, DL, TII.get(X86::NOOP));
+  MachineInstr* NMI;
+  for(auto MIIter = MBB->instr_begin(); ; MIIter++) {
+    if (&(*MIIter) != &MI)
+      continue;
+    MIIter++;
+    NMI = &(*MIIter);
+  }
 
-  MI.eraseFromParent();
+  MIB = BuildMI(*MBB, NMI, DL, TII.get(X86::NOOP));
+  MIB = BuildMI(*MBB, NMI, DL, TII.get(X86::NOOP));
+
 }
 
 bool UnalignedGadgetRemoval::isVulnerableBswap(MachineInstr &MI) {
