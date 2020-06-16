@@ -49,7 +49,8 @@ GFreeAssembler::GFreeAssembler(MachineFunction &MF, VirtRegMap *VRMap){
   tmpTM.reset(T.createTargetMachine(TM.getTargetTriple().getTriple(),
 				 TM.getTargetCPU(),
 				 TM.getTargetFeatureString(),
-				 TM.Options));
+				 TM.Options,
+         None, None, CodeGenOpt::Default));
 
   Printer = static_cast<X86AsmPrinter*>(T.createAsmPrinter(*tmpTM, std::unique_ptr<MCStreamer>(NullStreamer)));  
   Printer->setSubtarget(&MF.getSubtarget<X86Subtarget>());
@@ -70,7 +71,7 @@ void GFreeAssembler::temporaryRewriteRegister(MachineInstr *MI){
   unsigned int VirtReg, PhysReg;
 
   for(MachineOperand &MO: MI->operands()){
-    if( MO.isReg() &&  TRI->isVirtualRegister(MO.getReg()) ){
+    if( MO.isReg() &&  MO.getReg().isVirtual() ){
 
       VirtReg = MO.getReg();
       PhysReg = VRM->getPhys(VirtReg);
@@ -166,7 +167,7 @@ bool GFreeAssembler::LowerSubregToReg(MachineInstr *MI) {
 // Use the lowered one from tmpMBB->begin().
 bool GFreeAssembler::expandPseudo(MachineInstr *MI){
   assert(MI->isPseudo() && "MI is not a pseudo!\n");
-  if( TII->expandPostRAPseudo(MI) ){
+  if( TII->expandPostRAPseudo(*MI) ){
     // errs() << "[+] MI pseudo lowered BY TTI: " << *(tmpMBB->begin());
     return true;
   }
@@ -213,7 +214,7 @@ std::vector<unsigned char> GFreeAssembler::MachineInstrToBytes(MachineInstr *MI)
     if(!expandPseudo(tmpMI) ){ // If we didn't expanded, return empty array.
       goto exit;
     }
-    tmpMI = tmpMBB->begin();
+    tmpMI = &*tmpMBB->begin();
   }
   // GFreeDEBUG(3, "[A] MI rewrited-expanded       : " << *tmpMI);
   // 4. Lower and Encode MI.

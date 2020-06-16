@@ -4,14 +4,14 @@
 #include "X86.h"
 #include "llvm/MC/MCStreamer.h"
 #include "X86AsmPrinter.h"
-// #include "X86MCInstLower.h"
+#include "X86MCInstLower.h"
 #include "llvm/MC/MCCodeEmitter.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/VirtRegMap.h"
-// #include "X86GFreeUtils.h"
+#include "X86GFreeUtils.h"
 namespace llvm {
   class LLVM_LIBRARY_VISIBILITY GFreeAssembler{
   public:

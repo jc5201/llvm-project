@@ -71,7 +71,8 @@ set(sources
   X86WinEHState.cpp
   UnalignedGadget.cpp
   Assembler.cpp
-  # GFreeAssembler.cpp
+  GFreeAssembler.cpp
+  X86GFreeUtils.cpp
   )
 
 add_llvm_target(X86CodeGen ${sources})

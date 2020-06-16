@@ -123,6 +123,8 @@ public:
 
   const X86Subtarget &getSubtarget() const { return *Subtarget; }
 
+  void setSubtarget(const X86Subtarget *X86SubT) { Subtarget=X86SubT; }
+
   void EmitStartOfAsmFile(Module &M) override;
 
   void EmitEndOfAsmFile(Module &M) override;

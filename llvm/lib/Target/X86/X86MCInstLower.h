@@ -5,27 +5,18 @@
 #include "llvm/CodeGen/MachineModuleInfoImpls.h"
 #include "llvm/Support/Compiler.h"
 
-namespace llvm {
-  class MCAsmInfo;
-  class MCContext;
-  class MCInst;
-  class MCOperand;
-  class MCSymbol;
-  class MachineInstr;
-  class MachineFunction;
-  class MachineModuleInfoMachO;
-  class MachineOperand;
-  class Mangler;
-  class TargetMachine;
+using namespace llvm;
 
+namespace {
 
 /// X86MCInstLower - This class is used to lower an MachineInstr into an MCInst.
-class LLVM_LIBRARY_VISIBILITY X86MCInstLower {
+class X86MCInstLower {
   MCContext &Ctx;
   const MachineFunction &MF;
   const TargetMachine &TM;
   const MCAsmInfo &MAI;
   X86AsmPrinter &AsmPrinter;
+
 public:
   X86MCInstLower(const MachineFunction &MF, X86AsmPrinter &asmprinter);
 
@@ -38,9 +29,7 @@ public:
 
 private:
   MachineModuleInfoMachO &getMachOMMI() const;
-  Mangler *getMang() const {
-    return AsmPrinter.Mang;
-  }
 };
-#endif
+
 } // end anonymous namespace
+#endif
