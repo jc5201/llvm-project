@@ -316,7 +316,13 @@ X86MCInstLower::LowerMachineOperand(const MachineInstr *MI,
   case MachineOperand::MO_JumpTableIndex:
     return LowerSymbolOperand(MO, AsmPrinter.GetJTISymbol(MO.getIndex()));
   case MachineOperand::MO_ConstantPoolIndex:
-    return LowerSymbolOperand(MO, AsmPrinter.GetCPISymbol(MO.getIndex()));
+  {
+    const DataLayout &DL = MF.getMMI().getModule()->getDataLayout();
+    MCSymbol *MCS = Ctx.getOrCreateSymbol(Twine(DL.getPrivateGlobalPrefix()) +
+                                       "CPI" + Twine(MF.getFunctionNumber()) + "_" +
+                                       Twine(MO.getIndex()));
+    return LowerSymbolOperand(MO, MCS);
+  }
   case MachineOperand::MO_BlockAddress:
     return LowerSymbolOperand(
         MO, AsmPrinter.GetBlockAddressSymbol(MO.getBlockAddress()));

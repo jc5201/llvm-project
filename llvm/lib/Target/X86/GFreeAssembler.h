@@ -12,6 +12,8 @@
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/VirtRegMap.h"
 #include "X86GFreeUtils.h"
+#include "llvm/IR/LegacyPassManager.h"
+
 namespace llvm {
   class LLVM_LIBRARY_VISIBILITY GFreeAssembler{
   public:
@@ -24,6 +26,7 @@ namespace llvm {
     const TargetInstrInfo *TII;
     MachineBasicBlock *tmpMBB;
     VirtRegMap *VRM;
+    legacy::PassManager PM;
 
     void temporaryRewriteRegister(MachineInstr *MI);
     std::vector<unsigned char> lowerEncodeInstr(MachineInstr *RegRewMI);

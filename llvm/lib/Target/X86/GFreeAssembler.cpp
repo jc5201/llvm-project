@@ -9,6 +9,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "GFreeAssembler.h"
+#include "llvm/PassAnalysisSupport.h"
+#include "llvm/IR/LegacyPassManagers.h"
 
 using namespace llvm;
 
@@ -52,10 +54,22 @@ GFreeAssembler::GFreeAssembler(MachineFunction &MF, VirtRegMap *VRMap){
 				 TM.Options,
          None, None, CodeGenOpt::Default));
 
+  raw_null_ostream NO;
+  tmpTM->addPassesToEmitFile(PM, NO, nullptr, CGFT_ObjectFile);
+
   Printer = new X86AsmPrinter(*tmpTM, std::unique_ptr<MCStreamer>(NullStreamer));
   Printer->setSubtarget(&MF.getSubtarget<X86Subtarget>());
+
+  // PM.add(Printer);
+  // Module &M = *(const_cast<Module*>(MF.getFunction().getParent()));
+  // PM.run(M);
+
+  // FPPassManager *FPPM = new FPPassManager();
+  // AnalysisResolver *Resolver = new AnalysisResolver(*FPPM);
+  // Printer->setResolver(Resolver);
+  // Printer->doInitialization(M);
   // Finally(!) create an X86MCInstLower object.
-  Printer->SetupMachineFunction(MF);
+  // Printer->SetupMachineFunction(MF);
   MCInstLower = new gfree::X86MCInstLower(MF, *Printer);
 }
 
