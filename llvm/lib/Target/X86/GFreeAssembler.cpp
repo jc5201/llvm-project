@@ -55,7 +55,8 @@ GFreeAssembler::GFreeAssembler(MachineFunction &MF, VirtRegMap *VRMap){
          None, None, CodeGenOpt::Default));
 
   raw_null_ostream NO;
-  tmpTM->addPassesToEmitFile(PM, NO, nullptr, CGFT_ObjectFile);
+  PM = new legacy::PassManager();
+  tmpTM->addPassesToEmitFile(*PM, NO, nullptr, CGFT_ObjectFile);
 
   Printer = new X86AsmPrinter(*tmpTM, std::unique_ptr<MCStreamer>(NullStreamer));
   Printer->setSubtarget(&MF.getSubtarget<X86Subtarget>());

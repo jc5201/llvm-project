@@ -90,16 +90,16 @@ bool UnalignedGadgetRemoval::runOnMachineFunction(MachineFunction &MF) {
     while (repeatLoop) {
       repeatLoop = false;
       for (MachineInstr &MI : MBB.instrs()) {
-        std::vector<unsigned char> MIBytes = Assembler->MachineInstrToBytes(&MI);
-        for (auto ch : MIBytes) {errs() << '|' << (unsigned int)ch;} errs() << "\n";
-        if (isVulnerableJmp(MI, MIBytes)) {
+        //std::vector<unsigned char> MIBytes = Assembler->MachineInstrToBytes(&MI);
+        //for (auto ch : MIBytes) {errs() << '|' << (unsigned int)ch;} errs() << "\n";
+        /*if (isVulnerableJmp(MI, MIBytes)) {
           errs() << "Found vulnerable jmp op\n" ;
           changeVulnerableJmp(MI);
           changed = true;
           repeatLoop = true;
           break;
-        }
-        else if (isVulnerableBswap(MI)) {
+        }*/
+        if (isVulnerableBswap(MI)) {
           errs() << "Found vulnerable bswap op\n" ;
           changeVulnerableBswap(MI);
           changed = true;
@@ -283,14 +283,21 @@ void UnalignedGadgetRemoval::changeVulnerableModrm(MachineInstr &MI) {
 
 bool UnalignedGadgetRemoval::isVulnerableSIB(MachineInstr &MI) {
   if (MI.getNumOperands() == 5) {
-    X86AddressMode AM = getAddressFromInstr(&MI, 1);
-    if (AM.BaseType == X86AddressMode::RegBase && AM.Scale == 8) {
-      if ((AM.Base.Reg == 2 || AM.Base.Reg == 3) && (AM.IndexReg == 0 || AM.IndexReg == 1))
-        return true;
+    if ((MI.getOperand(1).isReg() || MI.getOperand(1).isFI())
+      && MI.getOperand(2).isImm()
+      && MI.getOperand(3).isReg()
+      && (MI.getOperand(4).isGlobal() || MI.getOperand(4).isImm())) {
+      X86AddressMode AM = getAddressFromInstr(&MI, 1);
+      if (AM.BaseType == X86AddressMode::RegBase && AM.Scale == 8) {
+        if ((AM.Base.Reg == 2 || AM.Base.Reg == 3) && (AM.IndexReg == 0 || AM.IndexReg == 1))
+          return true;
+        else
+          return false;
+      }
       else
         return false;
     }
-    else
+    else 
       return false;
     
   }
@@ -325,4 +332,5 @@ void UnalignedGadgetRemoval::changeVulnerableSIB(MachineInstr &MI) {
 }
 
 #endif
+
 

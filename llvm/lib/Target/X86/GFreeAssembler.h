@@ -26,7 +26,7 @@ namespace llvm {
     const TargetInstrInfo *TII;
     MachineBasicBlock *tmpMBB;
     VirtRegMap *VRM;
-    legacy::PassManager PM;
+    legacy::PassManager *PM;
 
     void temporaryRewriteRegister(MachineInstr *MI);
     std::vector<unsigned char> lowerEncodeInstr(MachineInstr *RegRewMI);
