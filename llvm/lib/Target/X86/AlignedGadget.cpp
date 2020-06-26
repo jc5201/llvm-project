@@ -43,6 +43,7 @@ namespace {
     }
 
   private:
+    void AddXorBefore(MachineInstr &MI);
   };
 }
 
@@ -60,7 +61,7 @@ char AlignedGadgetRemoval::ID = 0;
 bool AlignedGadgetRemoval::runOnMachineFunction(MachineFunction &MF) {
   for (auto &MBB : MF) {
     if (MBB.empty()) continue;
-    MachineInstr &MI = MBB.begin();
+    MachineInstr &MI = MBB.front();
     AddXorBefore(MI);
     break;
   }
@@ -85,16 +86,12 @@ void AlignedGadgetRemoval::AddXorBefore(MachineInstr &MI) {
   DebugLoc DL = MI.getDebugLoc();
   MachineInstrBuilder MIB; 
 
-
-  MachineOperand r11_def = MachineOperand::CreateReg(X86::R11, true);
-  MachineOperand r11_use = MachineOperand::CreateReg(X86::R11, false);
-
-  MIB = BuildMI(*MBB, MI, DL, TII.get(X86::MOV64rm)).addOperand(r11_def)
+  MIB = BuildMI(*MBB, MI, DL, TII.get(X86::MOV64rm)).addReg(X86::R11)
     .addReg(0).addImm(1).addReg(0).addImm(0x28).addReg(X86::FS);
 
   MIB = BuildMI(*MBB, MI, DL, TII.get(X86::XOR64mr));
-  addRegOffset(MIB, retAddrRegister, false, retAddrOffset);
-  MIB.addOperand(r11_use);
+  addRegOffset(MIB, X86::RSP, false, 0);
+  MIB.addReg(X86::R11);
 }
 
 #endif
