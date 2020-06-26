@@ -132,6 +132,8 @@ FunctionPass *createX86InsertPrefetchPass();
 
 FunctionPass *createUnalignedGadgetRemovalPass();
 
+FunctionPass *createAlignedGadgetRemovalPass();
+
 InstructionSelector *createX86InstructionSelector(const X86TargetMachine &TM,
                                                   X86Subtarget &,
                                                   X86RegisterBankInfo &);

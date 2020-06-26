@@ -70,6 +70,7 @@ set(sources
   X86WinAllocaExpander.cpp
   X86WinEHState.cpp
   UnalignedGadget.cpp
+  AlignedGadget.cpp
   Assembler.cpp
   GFreeAssembler.cpp
   X86GFreeUtils.cpp

@@ -544,6 +544,7 @@ void X86PassConfig::addPreEmitPass2() {
   if (TT.isOSWindows())
     addPass(createCFGuardLongjmpPass());
   
+  addPass(createAlignedGadgetRemovalPass());
   addPass(createUnalignedGadgetRemovalPass());
 }
 
